@@ -1,4 +1,6 @@
 import atexit
+import csv
+import io
 import os
 import secrets
 import smtplib
@@ -9,7 +11,7 @@ from email.message import EmailMessage
 from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 from psycopg.errors import UniqueViolation
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -38,7 +40,7 @@ EMAIL_ALERT_COOLDOWN_SECONDS = max(
     int(os.getenv("EMAIL_ALERT_COOLDOWN_SECONDS", "900")),
 )
 ALLOWED_ALERT_TYPES = {"CPU", "Memory", "Disk"}
-CPU_ALERT_THRESHOLD = float(os.getenv("CPU_ALERT_THRESHOLD", "80"))
+CPU_ALERT_THRESHOLD = float(os.getenv("CPU_ALERT_THRESHOLD", "75"))
 MEMORY_ALERT_THRESHOLD = float(os.getenv("MEMORY_ALERT_THRESHOLD", "90"))
 DISK_ALERT_THRESHOLD = float(os.getenv("DISK_ALERT_THRESHOLD", "90"))
 
@@ -229,6 +231,30 @@ def latest_metric_from_database():
         "net_sent_mb": float(row[12]),
         "net_recv_mb": float(row[13]),
     }
+
+
+def monitoring_log_filter_sql(log_filter):
+    where_clauses = []
+
+    if log_filter == "high_cpu":
+        where_clauses.append("cpu_percent >= %s")
+        params = [CPU_ALERT_THRESHOLD]
+    elif log_filter == "high_memory":
+        where_clauses.append("memory_percent >= %s")
+        params = [MEMORY_ALERT_THRESHOLD]
+    elif log_filter == "high_disk":
+        where_clauses.append("disk_percent >= %s")
+        params = [DISK_ALERT_THRESHOLD]
+    elif log_filter == "alerts":
+        where_clauses.append(
+            "(cpu_percent >= %s OR memory_percent >= %s OR disk_percent >= %s)"
+        )
+        params = [CPU_ALERT_THRESHOLD, MEMORY_ALERT_THRESHOLD, DISK_ALERT_THRESHOLD]
+    else:
+        params = []
+
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    return where_sql, params
 
 
 @app.get("/")
@@ -428,26 +454,7 @@ def history():
 @login_required
 def monitoring_logs():
     log_filter = request.args.get("filter", "all")
-    where_clauses = []
-
-    if log_filter == "high_cpu":
-        where_clauses.append("cpu_percent >= %s")
-        params = [CPU_ALERT_THRESHOLD]
-    elif log_filter == "high_memory":
-        where_clauses.append("memory_percent >= %s")
-        params = [MEMORY_ALERT_THRESHOLD]
-    elif log_filter == "high_disk":
-        where_clauses.append("disk_percent >= %s")
-        params = [DISK_ALERT_THRESHOLD]
-    elif log_filter == "alerts":
-        where_clauses.append(
-            "(cpu_percent >= %s OR memory_percent >= %s OR disk_percent >= %s)"
-        )
-        params = [CPU_ALERT_THRESHOLD, MEMORY_ALERT_THRESHOLD, DISK_ALERT_THRESHOLD]
-    else:
-        params = []
-
-    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    where_sql, params = monitoring_log_filter_sql(log_filter)
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -483,6 +490,68 @@ def monitoring_logs():
             }
             for row in rows
         ]
+    )
+
+
+@app.get("/api/monitoring-logs.csv")
+@login_required
+def monitoring_logs_csv():
+    log_filter = request.args.get("filter", "all")
+    where_sql, params = monitoring_log_filter_sql(log_filter)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    recorded_at,
+                    cpu_percent,
+                    memory_percent,
+                    disk_percent,
+                    process_count,
+                    net_download_kbps,
+                    net_upload_kbps
+                FROM cpu_metrics
+                {where_sql}
+                ORDER BY recorded_at DESC
+                LIMIT 1000
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "Recorded At",
+            "CPU %",
+            "Memory %",
+            "Disk %",
+            "Process Count",
+            "Download KB/s",
+            "Upload KB/s",
+        ]
+    )
+
+    for row in rows:
+        writer.writerow(
+            [
+                row[0].isoformat(),
+                float(row[1]),
+                float(row[2]),
+                float(row[3]),
+                row[4],
+                float(row[5]),
+                float(row[6]),
+            ]
+        )
+
+    filename = f"monitoring-logs-{log_filter}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

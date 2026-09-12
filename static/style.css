@@ -402,6 +402,30 @@ h2 {
     transition: width 350ms ease;
 }
 
+.bar-fill.cpu-good {
+    background: linear-gradient(90deg, var(--accent-2), #86efac);
+}
+
+.bar-fill.cpu-warn {
+    background: linear-gradient(90deg, var(--warn), #fbbf24);
+}
+
+.bar-fill.cpu-danger {
+    background: linear-gradient(90deg, var(--danger), #fb7185);
+}
+
+.metric-card strong.cpu-good {
+    color: #86efac;
+}
+
+.metric-card strong.cpu-warn {
+    color: #fbbf24;
+}
+
+.metric-card strong.cpu-danger {
+    color: #fecaca;
+}
+
 .disk-fill {
     background: linear-gradient(90deg, var(--warn), #fbbf24);
 }

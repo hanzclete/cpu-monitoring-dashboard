@@ -40,7 +40,7 @@
             <div>
                 <p class="eyebrow">ALERT STATUS</p>
                 <h2 id="alertTitle">System load normal</h2>
-                <p id="alertMessage">Sound alerts trigger when CPU reaches 80%, memory reaches 90%, or disk reaches 90%.</p>
+                <p id="alertMessage">CPU is green up to 60%, orange from 61% to 74%, and red alert from 75% above.</p>
             </div>
             <div class="alert-actions">
                 <button id="soundToggle" class="sound-toggle" type="button">
@@ -167,6 +167,10 @@
                     <p class="eyebrow">MONITORING LOGS</p>
                     <h2>Saved Metric Logs</h2>
                 </div>
+                <button id="downloadLogsButton" class="download-button" type="button">
+                    Download CSV
+                </button>
+                
                 <div class="log-filters">
                     <label>
                         Filter

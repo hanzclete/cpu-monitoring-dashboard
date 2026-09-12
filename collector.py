@@ -5,7 +5,7 @@ import threading
 import time
 import ctypes
 from ctypes import wintypes
-
+import csv
 import psutil
 
 from db import get_connection
@@ -344,3 +344,21 @@ def get_top_processes(limit=8):
         key=lambda item: (item["cpu_percent"], item["memory_percent"]),
         reverse=True,
     )[:limit]
+
+def export_metrics_to_csv(monitoring_logs_dir):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM public.cpu_metrics
+                ORDER BY id ASC
+                """
+            )
+            rows = cur.fetchall()
+            column_names = [desc[0] for desc in cur.description]
+
+    with open(file_path, mode='w', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(column_names)
+        writer.writerows(rows)

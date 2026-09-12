@@ -1,6 +1,8 @@
 const $ = (id) => document.getElementById(id);
 
-const CPU_ALERT_THRESHOLD = 80;
+const CPU_SAFE_THRESHOLD = 60;
+const CPU_WARNING_THRESHOLD = 61;
+const CPU_ALERT_THRESHOLD = 75;
 const MEMORY_ALERT_THRESHOLD = 90;
 const DISK_ALERT_THRESHOLD = 90;
 const BROWSER_NOTIFICATION_INTERVAL_MS = 0;
@@ -26,6 +28,29 @@ function clampPercent(value) {
 
 function setBar(id, value) {
     $(id).style.width = `${clampPercent(value)}%`;
+}
+
+function setCpuUsageState(value) {
+    const cpuBar = $("cpuBar");
+    const cpuNumber = $("cpuUsage")?.closest("strong");
+    const stateClasses = ["cpu-good", "cpu-warn", "cpu-danger"];
+    let stateClass = "cpu-good";
+
+    if (value >= CPU_ALERT_THRESHOLD) {
+        stateClass = "cpu-danger";
+    } else if (value >= CPU_WARNING_THRESHOLD) {
+        stateClass = "cpu-warn";
+    }
+
+    if (cpuBar) {
+        cpuBar.classList.remove(...stateClasses);
+        cpuBar.classList.add(stateClass);
+    }
+
+    if (cpuNumber) {
+        cpuNumber.classList.remove(...stateClasses);
+        cpuNumber.classList.add(stateClass);
+    }
 }
 
 function getAudioContext() {
@@ -162,7 +187,7 @@ async function requestBrowserNotificationPermission() {
         cpuBrowserNotificationActive = false;
         showBrowserNotification(
             "CPU Monitor notifications enabled",
-            "Chrome will show CPU alerts immediately when CPU reaches 80%.",
+            `Chrome will show CPU alerts immediately when CPU reaches ${CPU_ALERT_THRESHOLD}%.`,
             { respectCooldown: false }
         );
     } else if (status) {
@@ -283,7 +308,7 @@ function updateAlertState(data) {
     } else {
         alertTitle.textContent = "System load normal";
         alertMessage.textContent =
-            `Sound alerts trigger when CPU reaches ${CPU_ALERT_THRESHOLD}%, memory reaches ${MEMORY_ALERT_THRESHOLD}%, or disk reaches ${DISK_ALERT_THRESHOLD}%.`;
+            `CPU is green up to ${CPU_SAFE_THRESHOLD}%, orange from ${CPU_WARNING_THRESHOLD}% to ${CPU_ALERT_THRESHOLD - 1}%, and red alert from ${CPU_ALERT_THRESHOLD}% above.`;
     }
 
     alertActive = hasAlert;
@@ -553,6 +578,7 @@ async function loadLatest() {
     $("totalSent").textContent = Number(data.net_sent_mb).toFixed(1);
 
     setBar("cpuBar", data.cpu_percent);
+    setCpuUsageState(Number(data.cpu_percent));
     setBar("memoryBar", data.memory_percent);
     setBar("diskBar", data.disk_percent);
     renderCores(data.per_core || []);
@@ -620,6 +646,11 @@ async function loadMonitoringLogs() {
 
     monitoringLogs = await res.json();
     renderMonitoringLogs();
+}
+
+function downloadMonitoringLogsCsv() {
+    const filter = $("monitoringLogFilter")?.value || "all";
+    window.location.href = `/api/monitoring-logs.csv?filter=${encodeURIComponent(filter)}`;
 }
 
 async function loadApplicationActivity() {
@@ -727,6 +758,10 @@ if (monitoringLogFilter) {
 const monitoringLogSearch = $("monitoringLogSearch");
 if (monitoringLogSearch) {
     monitoringLogSearch.addEventListener("input", renderMonitoringLogs);
+}
+const downloadLogsButton = $("downloadLogsButton");
+if (downloadLogsButton) {
+    downloadLogsButton.addEventListener("click", downloadMonitoringLogsCsv);
 }
 refresh();
 refreshSupportingData();
