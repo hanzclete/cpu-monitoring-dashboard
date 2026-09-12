@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - CPU Monitoring Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="auth-shell">
+        <section class="auth-card">
+            <p class="eyebrow">SECURE ACCESS</p>
+            <h1>Login</h1>
+            <p class="auth-subtitle">Access the CPU Monitoring Dashboard.</p>
+
+            {% if error %}
+                <div class="form-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="post" class="auth-form">
+                <label>
+                    Username or Email
+                    <input type="text" name="username_or_email" autocomplete="username" required>
+                </label>
+
+                <label>
+                    Password
+                    <input type="password" name="password" autocomplete="current-password" required>
+                </label>
+
+                <label>
+                    Captcha: {{ captcha_question }}
+                    <input type="text" name="captcha" maxlength="6" autocomplete="off" autocapitalize="characters" required>
+                </label>
+
+                <button type="submit" class="primary-button">Login</button>
+            </form>
+
+            <p class="auth-link">No account yet? <a href="{{ url_for('signup') }}">Create one</a></p>
+        </section>
+    </main>
+</body>
+</html>

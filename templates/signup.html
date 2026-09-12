@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - CPU Monitoring Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="auth-shell">
+        <section class="auth-card">
+            <p class="eyebrow">CREATE ACCOUNT</p>
+            <h1>Sign Up</h1>
+            <p class="auth-subtitle">Create an account for dashboard access.</p>
+
+            {% if error %}
+                <div class="form-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="post" class="auth-form">
+                <label>
+                    Full Name
+                    <input type="text" name="full_name" autocomplete="name" required>
+                </label>
+
+                <label>
+                    Username
+                    <input type="text" name="username" autocomplete="username" required>
+                </label>
+
+                <label>
+                    Email
+                    <input type="email" name="email" autocomplete="email" required>
+                </label>
+
+                <label>
+                    Password
+                    <input type="password" name="password" autocomplete="new-password" minlength="6" required>
+                </label>
+
+                <label>
+                    Confirm Password
+                    <input type="password" name="confirm_password" autocomplete="new-password" minlength="6" required>
+                </label>
+
+                <label>
+                    Captcha: {{ captcha_question }}
+                    <input type="text" name="captcha" maxlength="6" autocomplete="off" autocapitalize="characters" required>
+                </label>
+
+                <button type="submit" class="primary-button">Create Account</button>
+            </form>
+
+            <p class="auth-link">Already registered? <a href="{{ url_for('login') }}">Login</a></p>
+        </section>
+    </main>
+</body>
+</html>

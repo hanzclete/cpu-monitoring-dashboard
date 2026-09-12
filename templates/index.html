@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Monitoring Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div id="inAppNotification" class="in-app-notification" role="alert" aria-live="assertive">
+        <strong id="inAppNotificationTitle">CPU Usage Alert</strong>
+        <span id="inAppNotificationMessage">CPU Usage: --%</span>
+    </div>
+
+    <main class="shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">SYSTEM MONITOR</p>
+                <h1>CPU Monitoring Dashboard</h1>
+                <p class="subtitle">Python + PostgreSQL real-time hardware monitoring</p>
+            </div>
+            <div class="topbar-actions">
+                <div class="status-pill">
+                    <span class="status-dot"></span>
+                    <span id="statusText">Live</span>
+                </div>
+                <form method="post" action="{{ url_for('logout') }}">
+                    <button class="logout-button" type="submit">Logout</button>
+                </form>
+            </div>
+        </header>
+
+        <section id="alertPanel" class="alert-panel" aria-live="polite">
+            <div>
+                <p class="eyebrow">ALERT STATUS</p>
+                <h2 id="alertTitle">System load normal</h2>
+                <p id="alertMessage">Sound alerts trigger when CPU reaches 80%, memory reaches 90%, or disk reaches 90%.</p>
+            </div>
+            <div class="alert-actions">
+                <button id="soundToggle" class="sound-toggle" type="button">
+                    Enable Sound
+                </button>
+                <button id="browserNotificationToggle" class="sound-toggle" type="button">
+                    Enable Chrome Notify
+                </button>
+                <button id="testEmailButton" class="sound-toggle" type="button">
+                    Test Gmail
+                </button>
+                <span id="notificationStatus">Chrome and Gmail notifications wait for an alert.</span>
+            </div>
+        </section>
+
+        <section class="system-card">
+            <div>
+                <span>Host</span>
+                <strong id="hostname">Loading...</strong>
+            </div>
+            <div>
+                <span>Processor</span>
+                <strong id="processor">Loading...</strong>
+            </div>
+            <div>
+                <span>Cores</span>
+                <strong id="cores">Loading...</strong>
+            </div>
+            <div>
+                <span>Platform</span>
+                <strong id="platform">Loading...</strong>
+            </div>
+        </section>
+
+        <section class="metrics-grid">
+            <article class="metric-card">
+                <span>CPU Usage</span>
+                <strong><span id="cpuUsage">--</span>%</strong>
+                <div class="bar"><div id="cpuBar" class="bar-fill"></div></div>
+            </article>
+
+            <article class="metric-card">
+                <span>CPU Frequency</span>
+                <strong><span id="cpuFreq">--</span> MHz</strong>
+                <p>Current clock frequency</p>
+            </article>
+
+            <article class="metric-card">
+                <span>Memory Usage</span>
+                <strong><span id="memoryUsage">--</span>%</strong>
+                <div class="bar"><div id="memoryBar" class="bar-fill"></div></div>
+            </article>
+
+            <article class="metric-card">
+                <span>Running Processes</span>
+                <strong id="processCount">--</strong>
+                <p>Active process count</p>
+            </article>
+
+            <article class="metric-card">
+                <span>Disk Usage</span>
+                <strong><span id="diskUsage">--</span>%</strong>
+                <div class="bar"><div id="diskBar" class="bar-fill disk-fill"></div></div>
+                <p><span id="diskFree">--</span> GB free of <span id="diskTotal">--</span> GB</p>
+            </article>
+
+            <article class="metric-card">
+                <span>Download Speed</span>
+                <strong><span id="downloadSpeed">--</span> KB/s</strong>
+                <p>Total received: <span id="totalReceived">--</span> MB</p>
+            </article>
+
+            <article class="metric-card">
+                <span>Upload Speed</span>
+                <strong><span id="uploadSpeed">--</span> KB/s</strong>
+                <p>Total sent: <span id="totalSent">--</span> MB</p>
+            </article>
+        </section>
+
+        <section class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">LIVE HISTORY</p>
+                    <h2>CPU, Memory & Disk Utilization</h2>
+                </div>
+                <span id="lastUpdated">Waiting for data...</span>
+            </div>
+
+            <div class="chart-wrap">
+                <svg id="historyChart" viewBox="0 0 1000 300" preserveAspectRatio="none" aria-label="CPU and memory history chart">
+                    <g class="grid-lines">
+                        <line x1="0" y1="0" x2="1000" y2="0"></line>
+                        <line x1="0" y1="75" x2="1000" y2="75"></line>
+                        <line x1="0" y1="150" x2="1000" y2="150"></line>
+                        <line x1="0" y1="225" x2="1000" y2="225"></line>
+                        <line x1="0" y1="300" x2="1000" y2="300"></line>
+                    </g>
+                    <polyline id="diskLine" class="chart-line disk-line" points=""></polyline>
+                    <polyline id="memoryLine" class="chart-line memory-line" points=""></polyline>
+                    <polyline id="cpuLine" class="chart-line cpu-line" points=""></polyline>
+                </svg>
+                <div class="legend">
+                    <span><i class="legend-cpu"></i> CPU</span>
+                    <span><i class="legend-memory"></i> Memory</span>
+                    <span><i class="legend-disk"></i> Disk</span>
+                    <span>0–100%</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">PROCESS MONITOR</p>
+                    <h2>Top Processes by CPU</h2>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="process-table">
+                    <thead>
+                        <tr>
+                            <th>PID</th>
+                            <th>Process</th>
+                            <th>CPU</th>
+                            <th>Memory</th>
+                        </tr>
+                    </thead>
+                    <tbody id="processTable">
+                        <tr>
+                            <td colspan="4">Loading processes...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">APPLICATION HISTORY</p>
+                    <h2>Recently Used Applications</h2>
+                </div>
+                <span>Tracks active application changes</span>
+            </div>
+            <div class="table-wrap">
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th>Application</th>
+                            <th>Instances</th>
+                            <th>First Seen</th>
+                            <th>Last Seen</th>
+                            <th>Samples</th>
+                        </tr>
+                    </thead>
+                    <tbody id="applicationActivityTable">
+                        <tr>
+                            <td colspan="5">No application activity recorded yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">PER-CORE LOAD</p>
+                    <h2>Logical CPU Cores</h2>
+                </div>
+            </div>
+            <div id="coresGrid" class="cores-grid"></div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
