@@ -273,8 +273,11 @@ def collector_loop():
 def start_collector():
     global _thread
 
-    if _thread and _thread.is_alive():
+    if _thread and _thread.is_alive() and not _stop_event.is_set():
         return
+
+    if _thread and _thread.is_alive():
+        _thread.join(timeout=1)
 
     _stop_event.clear()
     _thread = threading.Thread(
@@ -287,6 +290,10 @@ def start_collector():
 
 def stop_collector():
     _stop_event.set()
+
+
+def is_collector_running():
+    return bool(_thread and _thread.is_alive() and not _stop_event.is_set())
 
 
 def get_system_info():

@@ -24,6 +24,12 @@
                     <span class="status-dot"></span>
                     <span id="statusText">Live</span>
                 </div>
+                <button id="startMonitoringButton" class="logout-button control-button" type="button">
+                    Start
+                </button>
+                <button id="stopMonitoringButton" class="logout-button control-button" type="button">
+                    Stop
+                </button>
                 <form method="post" action="{{ url_for('logout') }}">
                     <button class="logout-button" type="submit">Logout</button>
                 </form>
@@ -47,6 +53,16 @@
                     Test Gmail
                 </button>
                 <span id="notificationStatus">Chrome and Gmail notifications wait for an alert.</span>
+            </div>
+        </section>
+
+        <section class="panel compact-panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">MONITORING CONTROL</p>
+                    <h2>Collection Status</h2>
+                </div>
+                <span id="monitoringControlStatus">Checking monitoring status...</span>
             </div>
         </section>
 
@@ -142,6 +158,50 @@
                     <span><i class="legend-disk"></i> Disk</span>
                     <span>0–100%</span>
                 </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-heading logs-heading">
+                <div>
+                    <p class="eyebrow">MONITORING LOGS</p>
+                    <h2>Saved Metric Logs</h2>
+                </div>
+                <div class="log-filters">
+                    <label>
+                        Filter
+                        <select id="monitoringLogFilter">
+                            <option value="all">All logs</option>
+                            <option value="alerts">All alerts</option>
+                            <option value="high_cpu">High CPU</option>
+                            <option value="high_memory">High Memory</option>
+                            <option value="high_disk">High Disk</option>
+                        </select>
+                    </label>
+                    <label>
+                        Search
+                        <input id="monitoringLogSearch" type="search" placeholder="Time or percent">
+                    </label>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="monitoring-log-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>CPU</th>
+                            <th>Memory</th>
+                            <th>Disk</th>
+                            <th>Processes</th>
+                            <th>Network</th>
+                        </tr>
+                    </thead>
+                    <tbody id="monitoringLogsTable">
+                        <tr>
+                            <td colspan="6">Loading monitoring logs...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </section>
 

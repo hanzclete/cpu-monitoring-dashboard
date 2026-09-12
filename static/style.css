@@ -154,6 +154,15 @@ h2 {
     background: #28476f;
 }
 
+.control-button {
+    min-width: 76px;
+}
+
+.control-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
 .alert-panel {
     display: flex;
     align-items: center;
@@ -402,6 +411,14 @@ h2 {
     padding: 22px;
 }
 
+.compact-panel {
+    padding: 16px 22px;
+}
+
+.compact-panel .panel-heading {
+    margin-bottom: 0;
+}
+
 .panel-heading {
     margin-bottom: 20px;
 }
@@ -477,8 +494,43 @@ h2 {
     overflow-x: auto;
 }
 
+.logs-heading {
+    align-items: flex-end;
+}
+
+.log-filters {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.log-filters label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.log-filters select,
+.log-filters input {
+    min-width: 160px;
+    padding: 10px 11px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    background: #0f1726;
+    font: inherit;
+    font-size: 0.88rem;
+    text-transform: none;
+}
+
 .process-table,
-.activity-table {
+.activity-table,
+.monitoring-log-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
@@ -488,7 +540,9 @@ h2 {
 .process-table th,
 .process-table td,
 .activity-table th,
-.activity-table td {
+.activity-table td,
+.monitoring-log-table th,
+.monitoring-log-table td {
     padding: 12px 10px;
     border-bottom: 1px solid var(--line);
     text-align: left;
@@ -496,16 +550,32 @@ h2 {
 }
 
 .process-table th,
-.activity-table th {
+.activity-table th,
+.monitoring-log-table th {
     color: var(--muted);
     font-size: 0.78rem;
     text-transform: uppercase;
 }
 
 .process-table td,
-.activity-table td {
+.activity-table td,
+.monitoring-log-table td {
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.monitoring-log-table th:first-child,
+.monitoring-log-table td:first-child {
+    width: 190px;
+}
+
+.monitoring-log-table th:nth-child(2),
+.monitoring-log-table td:nth-child(2),
+.monitoring-log-table th:nth-child(3),
+.monitoring-log-table td:nth-child(3),
+.monitoring-log-table th:nth-child(4),
+.monitoring-log-table td:nth-child(4) {
+    width: 110px;
 }
 
 .process-table th:first-child,

@@ -17,6 +17,7 @@ from collector import (
     collect_metrics,
     get_system_info,
     get_top_processes,
+    is_collector_running,
     save_application_activity,
     save_metrics,
     start_collector,
@@ -37,6 +38,9 @@ EMAIL_ALERT_COOLDOWN_SECONDS = max(
     int(os.getenv("EMAIL_ALERT_COOLDOWN_SECONDS", "900")),
 )
 ALLOWED_ALERT_TYPES = {"CPU", "Memory", "Disk"}
+CPU_ALERT_THRESHOLD = float(os.getenv("CPU_ALERT_THRESHOLD", "80"))
+MEMORY_ALERT_THRESHOLD = float(os.getenv("MEMORY_ALERT_THRESHOLD", "90"))
+DISK_ALERT_THRESHOLD = float(os.getenv("DISK_ALERT_THRESHOLD", "90"))
 
 
 def generate_captcha(form_name):
@@ -179,6 +183,54 @@ def send_notification_to_current_user(subject, message):
         return jsonify({"error": "Failed to send Gmail notification."}), 502
 
 
+def latest_metric_from_database():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    recorded_at,
+                    cpu_percent,
+                    per_core,
+                    cpu_frequency_mhz,
+                    memory_percent,
+                    process_count,
+                    disk_percent,
+                    disk_used_gb,
+                    disk_free_gb,
+                    disk_total_gb,
+                    net_upload_kbps,
+                    net_download_kbps,
+                    net_sent_mb,
+                    net_recv_mb
+                FROM cpu_metrics
+                ORDER BY recorded_at DESC
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "recorded_at": row[0].isoformat(),
+        "cpu_percent": float(row[1]),
+        "per_core": row[2],
+        "cpu_frequency_mhz": float(row[3]) if row[3] is not None else None,
+        "memory_percent": float(row[4]),
+        "process_count": row[5],
+        "disk_percent": float(row[6]),
+        "disk_used_gb": float(row[7]),
+        "disk_free_gb": float(row[8]),
+        "disk_total_gb": float(row[9]),
+        "net_upload_kbps": float(row[10]),
+        "net_download_kbps": float(row[11]),
+        "net_sent_mb": float(row[12]),
+        "net_recv_mb": float(row[13]),
+    }
+
+
 @app.get("/")
 @login_required
 def dashboard():
@@ -290,15 +342,44 @@ def system_info():
     return jsonify(get_system_info())
 
 
+@app.get("/api/monitoring/status")
+@login_required
+def monitoring_status():
+    return jsonify({"running": is_collector_running()})
+
+
+@app.post("/api/monitoring/start")
+@login_required
+def monitoring_start():
+    start_collector()
+    return jsonify({"running": is_collector_running(), "status": "started"})
+
+
+@app.post("/api/monitoring/stop")
+@login_required
+def monitoring_stop():
+    stop_collector()
+    return jsonify({"running": is_collector_running(), "status": "stopped"})
+
+
 @app.get("/api/latest")
 @login_required
 def latest_metrics():
+    if not is_collector_running():
+        latest = latest_metric_from_database()
+        if not latest:
+            return jsonify({"message": "No data collected yet."}), 404
+
+        latest["monitoring_enabled"] = False
+        return jsonify(latest)
+
     metrics = collect_metrics()
     save_metrics(metrics)
 
     return jsonify(
         {
             "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "monitoring_enabled": True,
             **metrics,
         }
     )
@@ -337,6 +418,68 @@ def history():
                 "disk_percent": float(row[3]),
                 "net_upload_kbps": float(row[4]),
                 "net_download_kbps": float(row[5]),
+            }
+            for row in rows
+        ]
+    )
+
+
+@app.get("/api/monitoring-logs")
+@login_required
+def monitoring_logs():
+    log_filter = request.args.get("filter", "all")
+    where_clauses = []
+
+    if log_filter == "high_cpu":
+        where_clauses.append("cpu_percent >= %s")
+        params = [CPU_ALERT_THRESHOLD]
+    elif log_filter == "high_memory":
+        where_clauses.append("memory_percent >= %s")
+        params = [MEMORY_ALERT_THRESHOLD]
+    elif log_filter == "high_disk":
+        where_clauses.append("disk_percent >= %s")
+        params = [DISK_ALERT_THRESHOLD]
+    elif log_filter == "alerts":
+        where_clauses.append(
+            "(cpu_percent >= %s OR memory_percent >= %s OR disk_percent >= %s)"
+        )
+        params = [CPU_ALERT_THRESHOLD, MEMORY_ALERT_THRESHOLD, DISK_ALERT_THRESHOLD]
+    else:
+        params = []
+
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    recorded_at,
+                    cpu_percent,
+                    memory_percent,
+                    disk_percent,
+                    process_count,
+                    net_download_kbps,
+                    net_upload_kbps
+                FROM cpu_metrics
+                {where_sql}
+                ORDER BY recorded_at DESC
+                LIMIT 100
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+
+    return jsonify(
+        [
+            {
+                "recorded_at": row[0].isoformat(),
+                "cpu_percent": float(row[1]),
+                "memory_percent": float(row[2]),
+                "disk_percent": float(row[3]),
+                "process_count": row[4],
+                "net_download_kbps": float(row[5]),
+                "net_upload_kbps": float(row[6]),
             }
             for row in rows
         ]

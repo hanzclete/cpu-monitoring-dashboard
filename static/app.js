@@ -18,6 +18,7 @@ let cpuBrowserNotificationActive = false;
 let refreshInFlight = false;
 let supportingRefreshInFlight = false;
 let inAppNotificationTimer = null;
+let monitoringLogs = [];
 
 function clampPercent(value) {
     return Math.max(0, Math.min(100, Number(value) || 0));
@@ -293,6 +294,58 @@ function updateAlertState(data) {
     }
 }
 
+function setMonitoringPausedState() {
+    const alertPanel = $("alertPanel");
+    const statusText = $("statusText");
+    const alertTitle = $("alertTitle");
+    const alertMessage = $("alertMessage");
+
+    if (alertPanel) {
+        alertPanel.classList.remove("is-alert");
+    }
+
+    if (statusText) {
+        statusText.textContent = "Stopped";
+    }
+
+    if (alertTitle) {
+        alertTitle.textContent = "Monitoring paused";
+    }
+
+    if (alertMessage) {
+        alertMessage.textContent = "Click Start to resume live CPU monitoring and alerts.";
+    }
+
+    alertActive = false;
+    activeAlertTypes = new Set();
+    cpuBrowserNotificationActive = false;
+}
+
+function updateMonitoringControls(isRunning) {
+    const startButton = $("startMonitoringButton");
+    const stopButton = $("stopMonitoringButton");
+    const controlStatus = $("monitoringControlStatus");
+    const statusText = $("statusText");
+
+    if (startButton) {
+        startButton.disabled = isRunning;
+    }
+
+    if (stopButton) {
+        stopButton.disabled = !isRunning;
+    }
+
+    if (controlStatus) {
+        controlStatus.textContent = isRunning
+            ? "Monitoring is running. Metrics are being collected and saved."
+            : "Monitoring is stopped. Latest saved metrics remain visible.";
+    }
+
+    if (statusText && !isRunning) {
+        statusText.textContent = "Stopped";
+    }
+}
+
 function renderCores(values) {
     const grid = $("coresGrid");
     grid.innerHTML = "";
@@ -390,6 +443,61 @@ function renderApplicationActivity(items) {
     });
 }
 
+function renderMonitoringLogs() {
+    const table = $("monitoringLogsTable");
+    if (!table) return;
+
+    const search = ($("monitoringLogSearch")?.value || "").trim().toLowerCase();
+    table.innerHTML = "";
+
+    const filteredLogs = monitoringLogs.filter((item) => {
+        if (!search) return true;
+
+        const date = new Date(item.recorded_at);
+        const haystack = [
+            date.toLocaleString(),
+            Number(item.cpu_percent).toFixed(1),
+            Number(item.memory_percent).toFixed(1),
+            Number(item.disk_percent).toFixed(1),
+            String(item.process_count),
+        ].join(" ").toLowerCase();
+
+        return haystack.includes(search);
+    });
+
+    if (!filteredLogs.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 6;
+        cell.textContent = "No monitoring logs match the selected filter.";
+        row.appendChild(cell);
+        table.appendChild(row);
+        return;
+    }
+
+    filteredLogs.forEach((item) => {
+        const row = document.createElement("tr");
+        const time = document.createElement("td");
+        const cpu = document.createElement("td");
+        const memory = document.createElement("td");
+        const disk = document.createElement("td");
+        const processes = document.createElement("td");
+        const network = document.createElement("td");
+        const date = new Date(item.recorded_at);
+
+        time.textContent = date.toLocaleString();
+        cpu.textContent = `${Number(item.cpu_percent).toFixed(1)}%`;
+        memory.textContent = `${Number(item.memory_percent).toFixed(1)}%`;
+        disk.textContent = `${Number(item.disk_percent).toFixed(1)}%`;
+        processes.textContent = item.process_count;
+        network.textContent =
+            `${Number(item.net_download_kbps).toFixed(1)} down / ${Number(item.net_upload_kbps).toFixed(1)} up KB/s`;
+
+        row.append(time, cpu, memory, disk, processes, network);
+        table.appendChild(row);
+    });
+}
+
 function makePolyline(values) {
     if (!values.length) return "";
 
@@ -448,10 +556,25 @@ async function loadLatest() {
     setBar("memoryBar", data.memory_percent);
     setBar("diskBar", data.disk_percent);
     renderCores(data.per_core || []);
-    updateAlertState(data);
+
+    if (data.monitoring_enabled === false) {
+        setMonitoringPausedState();
+        updateMonitoringControls(false);
+    } else {
+        updateMonitoringControls(true);
+        updateAlertState(data);
+    }
 
     const date = new Date(data.recorded_at);
     $("lastUpdated").textContent = `Last updated: ${date.toLocaleTimeString()}`;
+}
+
+async function loadMonitoringStatus() {
+    const res = await fetch("/api/monitoring/status");
+    if (!res.ok) return;
+
+    const data = await res.json();
+    updateMonitoringControls(Boolean(data.running));
 }
 
 async function loadHistory() {
@@ -487,6 +610,18 @@ async function loadProcesses() {
     renderProcesses(await res.json());
 }
 
+async function loadMonitoringLogs() {
+    const filter = $("monitoringLogFilter")?.value || "all";
+    const res = await fetch(`/api/monitoring-logs?filter=${encodeURIComponent(filter)}`);
+
+    if (!res.ok) {
+        throw new Error("Failed to load monitoring logs.");
+    }
+
+    monitoringLogs = await res.json();
+    renderMonitoringLogs();
+}
+
 async function loadApplicationActivity() {
     const res = await fetch("/api/application-activity");
     if (!res.ok) {
@@ -518,6 +653,7 @@ async function refreshSupportingData() {
         await Promise.all([
             loadHistory(),
             loadProcesses(),
+            loadMonitoringLogs(),
             loadApplicationActivity(),
         ]);
     } catch (error) {
@@ -527,7 +663,28 @@ async function refreshSupportingData() {
     }
 }
 
+async function setMonitoringRunning(shouldRun) {
+    const endpoint = shouldRun ? "/api/monitoring/start" : "/api/monitoring/stop";
+    const res = await fetch(endpoint, { method: "POST" });
+
+    if (!res.ok) {
+        throw new Error("Failed to update monitoring status.");
+    }
+
+    const data = await res.json();
+    updateMonitoringControls(Boolean(data.running));
+
+    if (data.running) {
+        await refresh();
+    } else {
+        setMonitoringPausedState();
+    }
+
+    await refreshSupportingData();
+}
+
 loadSystemInfo().catch(console.error);
+loadMonitoringStatus().catch(console.error);
 updateBrowserNotificationButton();
 const soundToggle = $("soundToggle");
 if (soundToggle) {
@@ -548,6 +705,28 @@ if (testEmailButton) {
 const browserNotificationToggle = $("browserNotificationToggle");
 if (browserNotificationToggle) {
     browserNotificationToggle.addEventListener("click", requestBrowserNotificationPermission);
+}
+const startMonitoringButton = $("startMonitoringButton");
+if (startMonitoringButton) {
+    startMonitoringButton.addEventListener("click", () => {
+        setMonitoringRunning(true).catch(console.error);
+    });
+}
+const stopMonitoringButton = $("stopMonitoringButton");
+if (stopMonitoringButton) {
+    stopMonitoringButton.addEventListener("click", () => {
+        setMonitoringRunning(false).catch(console.error);
+    });
+}
+const monitoringLogFilter = $("monitoringLogFilter");
+if (monitoringLogFilter) {
+    monitoringLogFilter.addEventListener("change", () => {
+        loadMonitoringLogs().catch(console.error);
+    });
+}
+const monitoringLogSearch = $("monitoringLogSearch");
+if (monitoringLogSearch) {
+    monitoringLogSearch.addEventListener("input", renderMonitoringLogs);
 }
 refresh();
 refreshSupportingData();
